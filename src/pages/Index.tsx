@@ -105,7 +105,7 @@ const Index = () => {
               <a href="https://docs.monad.xyz" target="_blank" rel="noopener noreferrer" className="hover:text-accent transition-colors">
                 Monad Docs
               </a>
-              <a href="https://monad.blockvision.org" target="_blank" rel="noopener noreferrer" className="hover:text-accent transition-colors">
+              <a href="https://testnet.monadexplorer.com" target="_blank" rel="noopener noreferrer" className="hover:text-accent transition-colors">
                 Block Explorer
               </a>
               <a href="https://metamask.io" target="_blank" rel="noopener noreferrer" className="hover:text-accent transition-colors">
