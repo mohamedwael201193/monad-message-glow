@@ -210,7 +210,7 @@ export const MonadMessenger: React.FC<MonadMessengerProps> = ({ className }) => 
                       <>
                         <span>•</span>
                         <a
-                          href={`https://explorer.monad.xyz/tx/${msg.txHash}`}
+                          href={`https://monad.blockvision.org/tx/${msg.txHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-accent hover:text-accent-glow transition-colors"
