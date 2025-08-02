@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
-import { PaperPlaneRight, Wallet, CheckCircle, Clock, Warning } from 'phosphor-react';
+import { PaperPlaneRight, Wallet, CheckCircle, Clock, Warning, ArrowClockwise } from 'phosphor-react';
 import { useToast } from '@/hooks/use-toast';
 
 const CONTRACT_ADDRESS = "0xC89D21dDA2B9896BD6389a1f6fA58fFA1f6f18CA";
 
-// Simple ABI for sendMessage function
+// Updated ABI with getMessages function
 const CONTRACT_ABI = [
-  "function sendMessage(string memory _message) public payable",
-  "event MessageSent(address indexed sender, string message, uint256 timestamp)"
+  "function sendMessage(string memory _text) public payable",
+  "function getMessages() external view returns (tuple(address sender, string text)[] memory)",
+  "event MessageSent(address indexed sender, string text)"
 ];
 
 interface Message {
@@ -18,6 +19,7 @@ interface Message {
   txHash?: string;
   status: 'pending' | 'confirmed' | 'failed';
   sender: string;
+  isOnChain?: boolean;
 }
 
 interface MonadMessengerProps {
@@ -30,6 +32,7 @@ export const MonadMessenger: React.FC<MonadMessengerProps> = ({ className }) => 
   const [message, setMessage] = useState('');
   const [messages, setMessages] = useState<Message[]>([]);
   const [isSending, setIsSending] = useState(false);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -123,6 +126,9 @@ export const MonadMessenger: React.FC<MonadMessengerProps> = ({ className }) => 
         description: "Your message was recorded on Monad Testnet!",
       });
 
+      // Reload messages to show the new on-chain message
+      setTimeout(() => loadMessages(), 2000);
+
     } catch (error) {
       console.error('Failed to send message:', error);
       
@@ -157,6 +163,50 @@ export const MonadMessenger: React.FC<MonadMessengerProps> = ({ className }) => 
     return `${address.slice(0, 6)}...${address.slice(-4)}`;
   };
 
+  const loadMessages = async () => {
+    if (!window.ethereum) return;
+    
+    setIsLoadingMessages(true);
+    try {
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
+      
+      const onChainMessages = await contract.getMessages();
+      
+      const formattedMessages: Message[] = onChainMessages.map((msg: any, index: number) => ({
+        id: `onchain-${index}`,
+        content: msg.text,
+        timestamp: new Date(), // Contract doesn't store timestamp, using current time
+        status: 'confirmed' as const,
+        sender: msg.sender,
+        isOnChain: true
+      }));
+      
+      // Filter out pending/failed local messages and merge with on-chain messages
+      setMessages(prev => {
+        const localPendingMessages = prev.filter(msg => !msg.isOnChain && msg.status !== 'confirmed');
+        return [...formattedMessages, ...localPendingMessages];
+      });
+      
+    } catch (error) {
+      console.error('Failed to load messages:', error);
+      toast({
+        title: "Failed to Load Messages",
+        description: "Could not fetch messages from blockchain",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  // Load messages on component mount and when wallet connects
+  useEffect(() => {
+    if (wallet) {
+      loadMessages();
+    }
+  }, [wallet]);
+
   return (
     <div className={`glass-card max-w-2xl mx-auto ${className}`}>
       {/* Header */}
@@ -169,7 +219,7 @@ export const MonadMessenger: React.FC<MonadMessengerProps> = ({ className }) => 
         </p>
         
         {/* Wallet Connection */}
-        <div className="mt-4">
+        <div className="mt-4 flex items-center justify-between">
           {!wallet ? (
             <button
               onClick={connectWallet}
@@ -180,10 +230,21 @@ export const MonadMessenger: React.FC<MonadMessengerProps> = ({ className }) => 
               {isConnecting ? 'Connecting...' : 'Connect Wallet'}
             </button>
           ) : (
-            <div className="glass px-4 py-2 rounded-lg inline-flex items-center gap-2">
-              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-sm font-medium">{formatAddress(wallet)}</span>
-            </div>
+            <>
+              <div className="glass px-4 py-2 rounded-lg inline-flex items-center gap-2">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                <span className="text-sm font-medium">{formatAddress(wallet)}</span>
+              </div>
+              <button
+                onClick={loadMessages}
+                disabled={isLoadingMessages}
+                className="glass hover:bg-white/10 px-3 py-2 rounded-lg text-white/80 hover:text-white transition-all flex items-center gap-2"
+                title="Refresh messages"
+              >
+                <ArrowClockwise className={`w-4 h-4 ${isLoadingMessages ? 'animate-spin' : ''}`} />
+                {isLoadingMessages ? 'Loading...' : 'Refresh'}
+              </button>
+            </>
           )}
         </div>
       </div>
