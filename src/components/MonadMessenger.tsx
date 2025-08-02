@@ -213,9 +213,9 @@ export const MonadMessenger: React.FC<MonadMessengerProps> = ({ className }) => 
                           href={`https://monad.blockvision.org/tx/${msg.txHash}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-accent hover:text-accent-glow transition-colors"
+                          className="text-violet-400 hover:underline"
                         >
-                          View TX
+                          View Transaction on BlockVision
                         </a>
                       </>
                     )}
