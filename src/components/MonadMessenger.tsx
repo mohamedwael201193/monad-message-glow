@@ -171,28 +171,52 @@ export const MonadMessenger: React.FC<MonadMessengerProps> = ({ className }) => 
       const provider = new ethers.BrowserProvider(window.ethereum);
       const contract = new ethers.Contract(CONTRACT_ADDRESS, CONTRACT_ABI, provider);
       
-      const onChainMessages = await contract.getMessages();
-      
-      const formattedMessages: Message[] = onChainMessages.map((msg: any, index: number) => ({
-        id: `onchain-${index}`,
-        content: msg.text,
-        timestamp: new Date(), // Contract doesn't store timestamp, using current time
-        status: 'confirmed' as const,
-        sender: msg.sender,
-        isOnChain: true
-      }));
-      
-      // Filter out pending/failed local messages and merge with on-chain messages
-      setMessages(prev => {
-        const localPendingMessages = prev.filter(msg => !msg.isOnChain && msg.status !== 'confirmed');
-        return [...formattedMessages, ...localPendingMessages];
-      });
+      // Try to get messages from contract function first
+      try {
+        const onChainMessages = await contract.getMessages();
+        
+        const formattedMessages: Message[] = onChainMessages.map((msg: any, index: number) => ({
+          id: `onchain-${index}`,
+          content: msg.text,
+          timestamp: new Date(),
+          status: 'confirmed' as const,
+          sender: msg.sender,
+          isOnChain: true
+        }));
+        
+        setMessages(prev => {
+          const localPendingMessages = prev.filter(msg => !msg.isOnChain && msg.status !== 'confirmed');
+          return [...formattedMessages, ...localPendingMessages];
+        });
+        
+      } catch (contractError) {
+        // If getMessages fails, try fetching from events (fallback for old contract)
+        console.log('getMessages() not available, fetching from events...');
+        
+        const filter = contract.filters.MessageSent();
+        const events = await contract.queryFilter(filter, -10000); // Last 10k blocks
+        
+        const eventMessages: Message[] = events.map((event: any, index: number) => ({
+          id: `event-${index}`,
+          content: event.args?.message || event.args?.text || 'Unknown message',
+          timestamp: new Date(),
+          status: 'confirmed' as const,
+          sender: event.args?.sender || 'Unknown',
+          isOnChain: true,
+          txHash: event.transactionHash
+        }));
+        
+        setMessages(prev => {
+          const localPendingMessages = prev.filter(msg => !msg.isOnChain && msg.status !== 'confirmed');
+          return [...eventMessages, ...localPendingMessages];
+        });
+      }
       
     } catch (error) {
       console.error('Failed to load messages:', error);
       toast({
         title: "Failed to Load Messages",
-        description: "Could not fetch messages from blockchain",
+        description: "Could not fetch messages from blockchain. Please check your network connection.",
         variant: "destructive"
       });
     } finally {
